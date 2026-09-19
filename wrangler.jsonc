@@ -4,6 +4,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    // 毎朝8:00 JST (= 23:00 UTC) に期限リマインドを送る
+    "crons": ["0 23 * * *"]
+  },
   "vars": {
     // Notionの「タスク管理」データソースID（秘密情報ではないのでvarsでOK）
     "NOTION_DATA_SOURCE_ID": "c457a247-0051-4be5-8572-4bbb571479ea"

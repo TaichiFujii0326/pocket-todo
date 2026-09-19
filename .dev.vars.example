@@ -10,3 +10,7 @@ ANTHROPIC_API_KEY=
 # notion.so/my-integrations で内部インテグレーションを作成して発行 (ntn_...)
 # 作成後、Notionの「タスク管理」データベースにそのインテグレーションを接続すること
 NOTION_TOKEN=
+
+# 期限リマインドの通知先ntfyトピック名。推測されにくいランダムな名前にする
+# (例: pocket-todo-a1b2c3d4)。iPhoneのntfyアプリで同じトピックを購読する
+NTFY_TOPIC=
