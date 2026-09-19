@@ -95,13 +95,13 @@ AIエージェントを組み合わせた開発サイクルで運用していま
 → Playwright E2E(ローカル+本番) → コミット
 ```
 
-実例: [セキュリティレビューと対応](./SECURITY_REVIEW_CODEX.md)、[ADR-0005(レビュー起点でntfy→Web Pushへ転換)](./docs/adr/0005-web-push-over-ntfy.md)
+実例: [セキュリティレビューと対応](./docs/reviews/)、[ADR-0005(レビュー起点でntfy→Web Pushへ転換)](./docs/adr/0005-web-push-over-ntfy.md)
 
 ## 設計ドキュメント
 
 - [CONTEXT.md](./CONTEXT.md) — このプロジェクトの用語集
 - [docs/adr/](./docs/adr/) — 主要な設計決定の記録(なぜNotionか、なぜWeb Pushか、など)
-- [SECURITY_REVIEW_CODEX.md](./SECURITY_REVIEW_CODEX.md) — 外部AI(Codex)によるセキュリティ監査レポートと対応
+- [docs/reviews/](./docs/reviews/) — 外部AI(Codex)によるセキュリティ監査レポート(対応・受容の判断はコミットメッセージとADRに記録)
 
 ## ロードマップ
 
