@@ -29,7 +29,7 @@ iOSショートカット / Webフォーム(PWA)
         ▼
 Cloudflare Workers (Hono + TypeScript)
         │  202を即返し、waitUntilでバックグラウンド処理
-        ├─ Claude API (claude-opus-5, 構造化出力) … 優先度/タグ/期限を推定
+        ├─ Claude API (claude-haiku-4-5, 構造化出力) … 意図判定と優先度/タグ/期限の推定
         └─ Notion API … タスクDBにページ作成
 ```
 
@@ -99,6 +99,7 @@ AIエージェントを組み合わせた開発サイクルで運用していま
 
 ## 設計ドキュメント
 
+- [docs/architecture.html](./docs/architecture.html) — インフラ構成図(コード根拠で作成した対話型HTML。クローンしてブラウザで開く)
 - [CONTEXT.md](./CONTEXT.md) — このプロジェクトの用語集
 - [docs/adr/](./docs/adr/) — 主要な設計決定の記録(なぜNotionか、なぜWeb Pushか、など)
 - [docs/reviews/](./docs/reviews/) — 外部AI(Codex)によるセキュリティ監査レポート(対応・受容の判断はコミットメッセージとADRに記録)
