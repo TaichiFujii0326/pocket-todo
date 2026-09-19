@@ -8,6 +8,7 @@ type Env = {
   ANTHROPIC_API_KEY: string;
   NOTION_TOKEN: string;
   NOTION_DATA_SOURCE_ID: string;
+  RATE_LIMITER: { limit(options: { key: string }): Promise<{ success: boolean }> };
 };
 
 const app = new Hono<{ Bindings: Env }>();
@@ -25,6 +26,13 @@ app.post("/api/tasks", async (c) => {
   const text = body?.text?.trim();
   if (!text) {
     return c.json({ error: "text is required" }, 400);
+  }
+
+  // トークン漏洩時の課金悪用対策: Claude API呼び出しに到達するリクエストを毎分5件に制限。
+  // 認証・バリデーション通過後に置くことで、正規の利用枠を無効リクエストに食われない
+  const { success } = await c.env.RATE_LIMITER.limit({ key: "global" });
+  if (!success) {
+    return c.json({ error: "rate limited" }, 429);
   }
 
   c.executionCtx.waitUntil(processTask(c.env, text));

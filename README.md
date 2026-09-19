@@ -32,6 +32,14 @@ Cloudflare Workers (Hono + TypeScript)
 - **タスクを絶対に失わない** — 分類に失敗してもタイトルだけで登録する。Notion書き込みは1回リトライ
 - **入力は1フィールドのみ** — 入力欄が増えるほど記録率は下がる。分類はAIの仕事
 
+## セキュリティ設計
+
+トークン漏洩時の課金悪用を想定した多層防御:
+
+1. **ハードリミット** — Anthropic APIはプリペイド式で自動リロードをOFFにしておく。最悪でも被害は残高まで
+2. **減速装置** — Worker内レートリミット(認証通過後のリクエストを毎分5件まで、超過は429)。近似カウンタのためバースト時は多少の超過を許容するが、持続的な悪用は絞られる。クレジットが溶ける速度を抑え、異変に気づく時間を稼ぐ
+3. **遮断** — `wrangler secret put AUTH_TOKEN` でトークンを即ローテーション可能
+
 ## セットアップ
 
 必要なもの: [Cloudflare](https://dash.cloudflare.com/sign-up)(無料) / [Anthropic API](https://console.anthropic.com)(従量課金) / [Notionインテグレーション](https://www.notion.so/my-integrations)(無料)

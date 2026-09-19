@@ -28,9 +28,10 @@ export async function classifyTask(apiKey: string, text: string): Promise<TaskFi
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
 
   const response = await client.messages.parse({
-    model: "claude-opus-5",
+    // Haiku 4.5: 分類タスクには十分な性能で、単価はOpusの1/5。effortパラメータは非対応
+    model: "claude-haiku-4-5",
     max_tokens: 2000,
-    output_config: { effort: "low", format: zodOutputFormat(TaskFieldsSchema) },
+    output_config: { format: zodOutputFormat(TaskFieldsSchema) },
     system: [
       "あなたはタスク管理アプリの分類エンジンです。",
       "ユーザーが1行で書いたタスクを解析し、タスク名・優先度・タグ・期限を抽出してください。",

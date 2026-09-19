@@ -7,6 +7,18 @@
   "vars": {
     // Notionの「タスク管理」データソースID（秘密情報ではないのでvarsでOK）
     "NOTION_DATA_SOURCE_ID": "c457a247-0051-4be5-8572-4bbb571479ea"
+  },
+  "unsafe": {
+    "bindings": [
+      // トークン漏洩時にAPIクレジットを溶かされる速度を抑える減速装置。
+      // 認証通過後のリクエストのみカウントする(実装側参照)
+      {
+        "name": "RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1001",
+        "simple": { "limit": 5, "period": 60 }
+      }
+    ]
   }
   // シークレットは `wrangler secret put <NAME>` で登録する:
   //   AUTH_TOKEN         - このAPIを叩くための合言葉（自分で決めるランダム文字列）

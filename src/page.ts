@@ -16,17 +16,18 @@ export const formPage = `<!doctype html>
     background: #f5f5f4; color: #1c1917;
     display: flex; flex-direction: column; gap: 16px; min-height: 100dvh; box-sizing: border-box;
   }
-  @media (prefers-color-scheme: dark) {
-    body { background: #1c1917; color: #fafaf9; }
-    input { background: #292524; color: #fafaf9; border-color: #44403c; }
-  }
   h1 { font-size: 20px; margin: 0; }
   form { display: flex; flex-direction: column; gap: 12px; }
   input {
     font-size: 18px; padding: 14px 16px; border: 1px solid #d6d3d1;
-    border-radius: 12px; outline: none; background: #fff;
+    border-radius: 12px; outline: none; background: #fff; color: #1c1917;
   }
   input:focus { border-color: #2563eb; }
+  /* ダークモード上書きは、素のinput/bodyルールより後に置くこと(同じ詳細度のため後勝ち) */
+  @media (prefers-color-scheme: dark) {
+    body { background: #1c1917; color: #fafaf9; }
+    input { background: #292524; color: #fafaf9; border-color: #44403c; }
+  }
   button {
     font-size: 17px; font-weight: 600; padding: 14px; border: none;
     border-radius: 12px; background: #2563eb; color: #fff;
@@ -75,6 +76,9 @@ export const formPage = `<!doctype html>
       if (res.status === 401) {
         try { localStorage.removeItem("pocket-todo-token"); } catch {}
         throw new Error("トークンが違います。再読み込みして入力し直してください");
+      }
+      if (res.status === 429) {
+        throw new Error("送信が多すぎます。1分ほど待ってから再試行してください");
       }
       if (!res.ok) throw new Error("送信に失敗しました (" + res.status + ")");
       status.className = "ok"; status.textContent = "✅ 放り込みました";
