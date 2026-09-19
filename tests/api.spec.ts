@@ -22,6 +22,29 @@ test.describe("API", () => {
     expect(res.status()).toBe(401);
   });
 
+  test("POST /api/remind without auth is rejected", async ({ request }) => {
+    const res = await request.post("/api/remind");
+    expect(res.status()).toBe(401);
+  });
+
+  test("POST /api/tasks with non-string text is a 400", async ({ request }) => {
+    test.skip(!TOKEN, "POCKET_TODO_TOKEN not set");
+    const res = await request.post("/api/tasks", {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      data: { text: 123 },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test("POST /api/tasks with too-long text is a 400", async ({ request }) => {
+    test.skip(!TOKEN, "POCKET_TODO_TOKEN not set");
+    const res = await request.post("/api/tasks", {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      data: { text: "あ".repeat(501) },
+    });
+    expect(res.status()).toBe(400);
+  });
+
   test("POST /api/tasks with an invalid JSON body is a 400", async ({ request }) => {
     test.skip(!TOKEN, "POCKET_TODO_TOKEN not set");
     const res = await request.post("/api/tasks", {

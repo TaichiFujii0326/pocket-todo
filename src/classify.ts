@@ -24,7 +24,9 @@ export function fallbackFields(text: string): TaskFields {
 // 1行の自由文からNotionプロパティを推定する。「明日まで」「急ぎ」などの
 // 相対表現を解釈させるため、今日の日付(JST)をプロンプトに埋め込む。
 export async function classifyTask(apiKey: string, text: string): Promise<TaskFields> {
-  const client = new Anthropic({ apiKey });
+  // M-06対策: SDK既定(タイムアウト10分/再試行2回)はWorkersのwaitUntil約30秒に収まらず、
+  // 遅延時にタスクごと消える。時間内に失敗させてフォールバック登録に落とすための設定
+  const client = new Anthropic({ apiKey, timeout: 10_000, maxRetries: 1 });
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
 
   const response = await client.messages.parse({
