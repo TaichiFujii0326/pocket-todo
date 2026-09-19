@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { classifyTask, fallbackFields, type TaskFields } from "./classify";
+import { fallbackFields, interpretInput, type Intent, type TaskFields } from "./classify";
 import { iconPngBase64 } from "./icon";
-import { createNotionTask } from "./notion";
+import { createNotionTask, queryOpenTasks, trashTask, updateTaskStatus, type OpenTask } from "./notion";
 import { formPage } from "./page";
 import { parseSubscription, saveSubscription, sendPushToAll } from "./push";
 import { sendDailyReminder } from "./remind";
@@ -150,22 +150,69 @@ app.post("/api/remind", async (c) => {
   }
 });
 
-async function processTask(env: Env, text: string): Promise<void> {
-  // 分類に失敗しても、タイトルだけのタスクとして必ずNotionに残す。
-  // 「放り込んだのに消えた」だけは絶対に起こさない。
-  let fields: TaskFields;
-  try {
-    fields = await classifyTask(env.ANTHROPIC_API_KEY, text);
-  } catch (err) {
-    console.error("classify failed, falling back to title-only:", err);
-    fields = fallbackFields(text);
-  }
-
+async function createWithRetry(env: Env, fields: TaskFields): Promise<void> {
   try {
     await createNotionTask(env.NOTION_TOKEN, env.NOTION_DATA_SOURCE_ID, fields);
   } catch (err) {
     console.error("notion write failed, retrying once:", err);
     await createNotionTask(env.NOTION_TOKEN, env.NOTION_DATA_SOURCE_ID, fields);
+  }
+}
+
+// 処理結果を登録済み端末へ知らせる(202即返し設計のフィードバックチャネル)
+async function notify(env: Env, title: string, body: string): Promise<void> {
+  await sendPushToAll(env, title, body);
+}
+
+// 入力の意図(新規/完了/遷移/削除)を判定して実行する。
+// 判定に失敗しても、タイトルだけのタスクとして必ずNotionに残す。
+// 「放り込んだのに消えた」だけは絶対に起こさない。
+async function processTask(env: Env, text: string): Promise<void> {
+  let intent: Intent;
+  let openTasks: OpenTask[] = [];
+  try {
+    openTasks = await queryOpenTasks(env.NOTION_TOKEN, env.NOTION_DATA_SOURCE_ID);
+    intent = await interpretInput(env.ANTHROPIC_API_KEY, text, openTasks);
+  } catch (err) {
+    console.error("interpret failed, falling back to title-only create:", err);
+    await createWithRetry(env, fallbackFields(text));
+    return;
+  }
+
+  try {
+    switch (intent.action) {
+      case "create":
+        await createWithRetry(env, intent.task ?? fallbackFields(text));
+        break;
+      case "complete":
+      case "set_status": {
+        const target = intent.target_index != null ? openTasks[intent.target_index] : undefined;
+        if (!target) {
+          await notify(env, "❓ pocket-todo", `対象タスクを特定できませんでした:「${text}」`);
+          return;
+        }
+        const status = intent.action === "complete" ? "完了" : (intent.new_status ?? "進行中");
+        await updateTaskStatus(env.NOTION_TOKEN, target.id, status);
+        await notify(env, status === "完了" ? "✅ 完了" : `▶️ ${status}`, `「${target.title}」を${status}にしました`);
+        break;
+      }
+      case "delete": {
+        const target = intent.target_index != null ? openTasks[intent.target_index] : undefined;
+        if (!target) {
+          await notify(env, "❓ pocket-todo", `対象タスクを特定できませんでした:「${text}」`);
+          return;
+        }
+        await trashTask(env.NOTION_TOKEN, target.id);
+        await notify(env, "🗑️ 削除", `「${target.title}」をゴミ箱に移動しました(30日以内はNotionから復元できます)`);
+        break;
+      }
+      case "unclear":
+        await notify(env, "❓ pocket-todo", intent.note || `解釈できませんでした:「${text}」`);
+        break;
+    }
+  } catch (err) {
+    console.error("task operation failed:", err);
+    await notify(env, "⚠️ pocket-todo", `処理に失敗しました:「${text}」`).catch(() => {});
   }
 }
 

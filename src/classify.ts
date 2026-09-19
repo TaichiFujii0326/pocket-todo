@@ -21,31 +21,67 @@ export function fallbackFields(text: string): TaskFields {
   return { title: text, priority: null, tags: [], due: null };
 }
 
-// 1行の自由文からNotionプロパティを推定する。「明日まで」「急ぎ」などの
-// 相対表現を解釈させるため、今日の日付(JST)をプロンプトに埋め込む。
-export async function classifyTask(apiKey: string, text: string): Promise<TaskFields> {
-  // M-06対策: SDK既定(タイムアウト10分/再試行2回)はWorkersのwaitUntil約30秒に収まらず、
-  // 遅延時にタスクごと消える。時間内に失敗させてフォールバック登録に落とすための設定
+// 入力文の意図判定。新規作成だけでなく、既存タスクの完了・遷移・削除も拾う
+export const IntentSchema = z.object({
+  action: z
+    .enum(["create", "complete", "set_status", "delete", "unclear"])
+    .describe(
+      "create=新しいタスクの追加, complete=既存タスクを完了に, set_status=既存タスクのステータス変更, delete=既存タスクの削除, unclear=既存タスクへの操作に見えるが対象を特定できない",
+    ),
+  task: TaskFieldsSchema.nullable().describe("actionがcreateのときのタスク内容。それ以外はnull"),
+  target_index: z
+    .number()
+    .int()
+    .nullable()
+    .describe("complete/set_status/deleteの対象。タスク一覧の番号。createとunclearではnull"),
+  new_status: z
+    .enum(["未着手", "進行中", "完了"])
+    .nullable()
+    .describe("set_statusのときの遷移先。それ以外はnull"),
+  note: z.string().describe("unclearの理由などユーザー向けの短い一言。不要なら空文字"),
+});
+
+export type Intent = z.infer<typeof IntentSchema>;
+
+export async function interpretInput(
+  apiKey: string,
+  text: string,
+  openTasks: Array<{ title: string; status: string }>,
+): Promise<Intent> {
+  // タイムアウト/再試行はSDK既定(10分/2回)だとWorkersのwaitUntil約30秒に収まらず
+  // タスクごと消えるため短く設定し、時間内にフォールバック登録へ落とす(M-06対策)
   const client = new Anthropic({ apiKey, timeout: 10_000, maxRetries: 1 });
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
+  const taskList =
+    openTasks.length > 0
+      ? openTasks.map((t, i) => `${i}: [${t.status}] ${t.title}`).join("\n")
+      : "(未完了タスクなし)";
 
   const response = await client.messages.parse({
-    // Haiku 4.5: 分類タスクには十分な性能で、単価はOpusの1/5。effortパラメータは非対応
     model: "claude-haiku-4-5",
     max_tokens: 2000,
-    output_config: { format: zodOutputFormat(TaskFieldsSchema) },
+    output_config: { format: zodOutputFormat(IntentSchema) },
     system: [
-      "あなたはタスク管理アプリの分類エンジンです。",
-      "ユーザーが1行で書いたタスクを解析し、タスク名・優先度・タグ・期限を抽出してください。",
-      `今日は ${today} (日本時間) です。「明日」「来週金曜」などの相対的な期限はこの日付を基準に解釈してください。`,
-      "優先度は「急ぎ」「!」「until系の近い期限」などの手がかりから推定し、根拠がなければnullにしてください。",
-      "タグは内容から推定してください: 仕事(業務・会議・資料など) / 個人(買い物・家事・私用など) / 開発(コーディング・技術学習など)。",
+      "あなたはタスク管理アプリの意図判定エンジンです。ユーザーの1行入力を解析し、実行すべき操作を決めてください。",
+      `今日は ${today} (日本時間) です。相対的な期限表現はこの日付を基準に解釈してください。`,
+      "",
+      "現在の未完了タスク一覧:",
+      taskList,
+      "",
+      "判定ルール:",
+      "- 新しいやることを書いた文 → create。タスク名・優先度(高/中/低)・タグ(仕事/個人/開発)・期限を推定する。根拠がない項目はnull/空",
+      "- 「〜終わった」「〜完了」「〜done」など → complete。一覧から対象の番号を選ぶ",
+      "- 「〜やり始めた」「〜着手」など → set_status(進行中)。「〜やっぱり戻す」→ set_status(未着手)",
+      "- 「〜消して」「〜削除」「〜いらない」など → delete。一覧から対象の番号を選ぶ",
+      "- 既存タスクへの操作に見えるのに、一覧に対象が見つからない・複数あって絞れない → unclear(理由をnoteに)。推測で操作してはいけない",
+      "- 普通の名詞句や新しい用事はcreateに倒す",
     ].join("\n"),
     messages: [{ role: "user", content: text }],
   });
 
   if (!response.parsed_output) {
-    throw new Error("classification returned no parsed output");
+    throw new Error("intent interpretation returned no parsed output");
   }
   return response.parsed_output;
 }
+

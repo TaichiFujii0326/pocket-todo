@@ -53,7 +53,7 @@ export const formPage = `<!doctype html>
   <button id="btn" type="submit">タスクを放り込む</button>
 </form>
 <div id="status"></div>
-<p class="hint">優先度・タグ・期限はAIが自動で推定してNotionに登録します。</p>
+<p class="hint">優先度・タグ・期限はAIが自動で推定してNotionに登録します。<br>「経費精算おわった」「バス予約のタスク消して」のように書くと、完了・削除などの操作もできます(結果は通知でお知らせ)。</p>
 <button id="pushBtn" type="button">🔔 期限リマインド通知を有効にする</button>
 <div id="pushStatus"></div>
 <script>

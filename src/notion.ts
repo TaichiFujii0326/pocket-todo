@@ -5,6 +5,71 @@ const NOTION_API = "https://api.notion.com/v1/pages";
 const NOTION_VERSION = "2025-09-03";
 
 export type DueTask = { title: string; due: string };
+export type OpenTask = { id: string; title: string; status: string };
+
+// 未完了(完了以外)のタスク一覧。意図判定で「どのタスクへの操作か」を選ばせるのに使う
+export async function queryOpenTasks(token: string, dataSourceId: string): Promise<OpenTask[]> {
+  const res = await fetch(`https://api.notion.com/v1/data_sources/${dataSourceId}/query`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Notion-Version": NOTION_VERSION,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      filter: { property: "ステータス", status: { does_not_equal: "完了" } },
+      page_size: 100,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Notion query error ${res.status}: ${await res.text()}`);
+  }
+  const data = (await res.json()) as {
+    results: Array<{
+      id: string;
+      properties: {
+        Name?: { title?: Array<{ plain_text: string }> };
+        ステータス?: { status?: { name: string } | null };
+      };
+    }>;
+  };
+  return data.results.map((page) => ({
+    id: page.id,
+    title: page.properties.Name?.title?.map((t) => t.plain_text).join("") || "(無題)",
+    status: page.properties.ステータス?.status?.name ?? "未着手",
+  }));
+}
+
+export async function updateTaskStatus(token: string, pageId: string, status: string): Promise<void> {
+  const res = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Notion-Version": NOTION_VERSION,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ properties: { ステータス: { status: { name: status } } } }),
+  });
+  if (!res.ok) {
+    throw new Error(`Notion status update error ${res.status}: ${await res.text()}`);
+  }
+}
+
+// Notionのゴミ箱へ移動(30日以内はNotion UIから復元できる)
+export async function trashTask(token: string, pageId: string): Promise<void> {
+  const res = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Notion-Version": NOTION_VERSION,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ in_trash: true }),
+  });
+  if (!res.ok) {
+    throw new Error(`Notion trash error ${res.status}: ${await res.text()}`);
+  }
+}
 
 // 期限が指定日以前で、未完了のタスクを期限昇順で返す(リマインド用)
 export async function queryDueTasks(
