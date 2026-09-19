@@ -131,6 +131,48 @@ app.post("/api/tasks", async (c) => {
   return c.json({ ok: true }, 202);
 });
 
+const jstToday = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
+
+// 今日ビュー: 期限超過 / 今日が期限 / 期限なし高優先 の未完了タスク
+app.get("/api/today", async (c) => {
+  const authError = checkAuth(c);
+  if (authError) {
+    return c.json({ error: authError === 503 ? "server not configured" : "unauthorized" }, authError as 401 | 503);
+  }
+  try {
+    const today = jstToday();
+    const tasks = await queryOpenTasks(c.env.NOTION_TOKEN, c.env.NOTION_DATA_SOURCE_ID);
+    return c.json({
+      date: today,
+      overdue: tasks.filter((t) => t.due && t.due < today).sort((a, b) => (a.due < b.due ? -1 : 1)),
+      dueToday: tasks.filter((t) => t.due === today),
+      noDueHigh: tasks.filter((t) => !t.due && t.priority === "高"),
+    });
+  } catch (err) {
+    console.error("today view failed:", err);
+    return c.json({ error: "failed to load tasks" }, 502);
+  }
+});
+
+// 今日ビューの完了タップ。AI呼び出しが無いのでレートリミット対象外
+app.post("/api/complete", async (c) => {
+  const authError = checkAuth(c);
+  if (authError) {
+    return c.json({ error: authError === 503 ? "server not configured" : "unauthorized" }, authError as 401 | 503);
+  }
+  const body = await c.req.json<{ id?: unknown }>().catch(() => null);
+  if (typeof body?.id !== "string" || !/^[0-9a-f-]{32,36}$/.test(body.id)) {
+    return c.json({ error: "invalid task id" }, 400);
+  }
+  try {
+    await updateTaskStatus(c.env.NOTION_TOKEN, body.id, "完了");
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error("complete failed:", err);
+    return c.json({ error: "failed to complete task" }, 502);
+  }
+});
+
 // リマインドの手動実行(動作確認用)。cronと同じ処理を認証つきで叩ける
 app.post("/api/remind", async (c) => {
   const authError = checkAuth(c);

@@ -44,6 +44,22 @@ export const formPage = `<!doctype html>
     font-size: 14px; padding: 10px; margin-top: auto;
   }
   #pushStatus { font-size: 12px; color: #78716c; min-height: 16px; }
+  #todayView h2 { font-size: 16px; margin: 12px 0 4px; }
+  .tsec { font-size: 13px; font-weight: 600; color: #78716c; margin: 10px 0 4px; }
+  .trow {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: #fff; border: 1px solid #e7e5e4; border-radius: 10px; margin-bottom: 6px;
+  }
+  .tdone {
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid #a8a29e;
+    background: transparent; padding: 0; flex: none;
+  }
+  .ttl { font-size: 15px; flex: 1; overflow-wrap: anywhere; }
+  .tmeta { font-size: 12px; color: #dc2626; flex: none; }
+  .empty { font-size: 14px; color: #78716c; padding: 8px 0; }
+  @media (prefers-color-scheme: dark) {
+    .trow { background: #292524; border-color: #44403c; }
+  }
 </style>
 </head>
 <body>
@@ -54,6 +70,10 @@ export const formPage = `<!doctype html>
 </form>
 <div id="status"></div>
 <p class="hint">優先度・タグ・期限はAIが自動で推定してNotionに登録します。<br>「経費精算おわった」「バス予約のタスク消して」のように書くと、完了・削除などの操作もできます(結果は通知でお知らせ)。</p>
+<section id="todayView" hidden>
+  <h2>今日なにやる？</h2>
+  <div id="taskList"></div>
+</section>
 <button id="pushBtn" type="button">🔔 期限リマインド通知を有効にする</button>
 <div id="pushStatus"></div>
 <script>
@@ -93,12 +113,93 @@ export const formPage = `<!doctype html>
       status.className = "ok"; status.textContent = "✅ 放り込みました";
       $("text").value = "";
       $("text").focus();
+      // バックグラウンドのAI処理(1〜3秒)が終わった頃に今日ビューを更新
+      setTimeout(loadToday, 4000);
     } catch (err) {
       status.className = "err"; status.textContent = "⚠️ " + err.message;
     } finally {
       $("btn").disabled = false;
     }
   });
+
+  // ---- 今日ビュー ----
+  function storedToken() {
+    try { return localStorage.getItem("pocket-todo-token"); } catch { return null; }
+  }
+  async function loadToday() {
+    const token = storedToken();
+    if (!token) return; // トークン未設定の間は非表示のまま
+    try {
+      const res = await fetch("/api/today", { headers: { Authorization: "Bearer " + token.trim() } });
+      if (!res.ok) return;
+      renderToday(await res.json());
+    } catch {}
+  }
+  function renderToday(data) {
+    const list = $("taskList");
+    $("todayView").hidden = false;
+    list.textContent = "";
+    const sections = [
+      ["🔥 期限超過", data.overdue, true],
+      ["📌 今日が期限", data.dueToday, false],
+      ["⚡ 期限なし・優先度高", data.noDueHigh, false],
+    ];
+    let total = 0;
+    for (const [label, items, showDue] of sections) {
+      if (!items || items.length === 0) continue;
+      total += items.length;
+      const head = document.createElement("div");
+      head.className = "tsec";
+      head.textContent = label + " (" + items.length + ")";
+      list.appendChild(head);
+      for (const task of items) {
+        const row = document.createElement("div");
+        row.className = "trow";
+        const done = document.createElement("button");
+        done.type = "button";
+        done.className = "tdone";
+        done.setAttribute("aria-label", "完了にする");
+        done.addEventListener("click", () => completeTask(task, row));
+        const title = document.createElement("div");
+        title.className = "ttl";
+        title.textContent = task.title;
+        row.appendChild(done);
+        row.appendChild(title);
+        if (showDue && task.due) {
+          const meta = document.createElement("div");
+          meta.className = "tmeta";
+          meta.textContent = task.due.slice(5).replace("-", "/") + "〜";
+          row.appendChild(meta);
+        }
+        list.appendChild(row);
+      }
+    }
+    if (total === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "今日のタスクはありません🎉";
+      list.appendChild(empty);
+    }
+  }
+  async function completeTask(task, row) {
+    row.style.opacity = "0.4";
+    try {
+      const res = await fetch("/api/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + (storedToken() || "").trim() },
+        body: JSON.stringify({ id: task.id }),
+      });
+      if (!res.ok) throw new Error();
+      row.remove();
+      if (!$("taskList").querySelector(".trow")) loadToday();
+    } catch {
+      row.style.opacity = "1";
+      const s = $("status");
+      s.className = "err";
+      s.textContent = "⚠️ 完了にできませんでした";
+    }
+  }
+  loadToday();
 
   // ---- Web Push (期限リマインド通知) ----
   const VAPID_PUBLIC_KEY = "__VAPID_PUBLIC_KEY__";

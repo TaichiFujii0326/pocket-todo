@@ -27,6 +27,16 @@ test.describe("API", () => {
     expect(res.status()).toBe(401);
   });
 
+  test("GET /api/today without auth is rejected", async ({ request }) => {
+    const res = await request.get("/api/today");
+    expect(res.status()).toBe(401);
+  });
+
+  test("POST /api/complete without auth is rejected", async ({ request }) => {
+    const res = await request.post("/api/complete", { data: { id: "x" } });
+    expect(res.status()).toBe(401);
+  });
+
   test("POST /api/tasks with non-string text is a 400", async ({ request }) => {
     test.skip(!TOKEN, "POCKET_TODO_TOKEN not set");
     const res = await request.post("/api/tasks", {

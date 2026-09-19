@@ -5,7 +5,7 @@ const NOTION_API = "https://api.notion.com/v1/pages";
 const NOTION_VERSION = "2025-09-03";
 
 export type DueTask = { title: string; due: string };
-export type OpenTask = { id: string; title: string; status: string };
+export type OpenTask = { id: string; title: string; status: string; due: string; priority: string | null };
 
 // 未完了(完了以外)のタスク一覧。意図判定で「どのタスクへの操作か」を選ばせるのに使う
 export async function queryOpenTasks(token: string, dataSourceId: string): Promise<OpenTask[]> {
@@ -30,6 +30,8 @@ export async function queryOpenTasks(token: string, dataSourceId: string): Promi
       properties: {
         Name?: { title?: Array<{ plain_text: string }> };
         ステータス?: { status?: { name: string } | null };
+        期限?: { date?: { start: string } | null };
+        優先度?: { select?: { name: string } | null };
       };
     }>;
   };
@@ -37,6 +39,8 @@ export async function queryOpenTasks(token: string, dataSourceId: string): Promi
     id: page.id,
     title: page.properties.Name?.title?.map((t) => t.plain_text).join("") || "(無題)",
     status: page.properties.ステータス?.status?.name ?? "未着手",
+    due: page.properties.期限?.date?.start ?? "",
+    priority: page.properties.優先度?.select?.name ?? null,
   }));
 }
 
