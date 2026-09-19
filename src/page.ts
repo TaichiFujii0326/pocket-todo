@@ -13,18 +13,23 @@ export const formPage = `<!doctype html>
 <style>
   :root { color-scheme: light dark; }
   body {
-    margin: 0; padding: calc(24px + env(safe-area-inset-top, 0px)) 20px 24px;
+    margin: 0 auto; max-width: 520px;
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
     background: #f5f5f4; color: #1c1917;
-    display: flex; flex-direction: column; gap: 16px; min-height: 100dvh; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 14px; min-height: 100dvh; box-sizing: border-box;
   }
+  header { display: flex; align-items: center; gap: 10px; }
+  header img { width: 30px; height: 30px; border-radius: 8px; }
   h1 { font-size: 20px; margin: 0; }
   form { display: flex; flex-direction: column; gap: 12px; }
   input {
     font-size: 18px; padding: 14px 16px; border: 1px solid #d6d3d1;
     border-radius: 12px; outline: none; background: #fff; color: #1c1917;
   }
-  input:focus { border-color: #2563eb; }
+  input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18); }
+  button { transition: transform 0.1s; }
+  button:active { transform: scale(0.97); }
   /* ダークモード上書きは、素のinput/bodyルールより後に置くこと(同じ詳細度のため後勝ち) */
   @media (prefers-color-scheme: dark) {
     body { background: #1c1917; color: #fafaf9; }
@@ -32,7 +37,7 @@ export const formPage = `<!doctype html>
   }
   button {
     font-size: 17px; font-weight: 600; padding: 14px; border: none;
-    border-radius: 12px; background: #2563eb; color: #fff;
+    border-radius: 12px; background: linear-gradient(135deg, #6366f1, #4338ca); color: #fff;
   }
   button:disabled { opacity: 0.5; }
   #status { font-size: 14px; min-height: 20px; }
@@ -40,38 +45,55 @@ export const formPage = `<!doctype html>
   #status.err { color: #dc2626; }
   .hint { font-size: 12px; color: #78716c; }
   #pushBtn {
-    background: transparent; color: #2563eb; border: 1px solid #2563eb;
+    background: transparent; color: #6366f1; border: 1px solid #6366f1;
     font-size: 14px; padding: 10px; margin-top: auto;
   }
   #pushStatus { font-size: 12px; color: #78716c; min-height: 16px; }
-  #todayView h2 { font-size: 16px; margin: 12px 0 4px; }
+  .vhead { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+  .vhead h2 { font-size: 16px; margin: 0; }
+  #refreshBtn {
+    background: #fff; border: 1px solid #d6d3d1; border-radius: 8px;
+    font-size: 13px; padding: 6px 12px; color: #57534e;
+  }
+  @media (prefers-color-scheme: dark) {
+    #refreshBtn { background: #292524; border-color: #44403c; color: #d6d3d1; }
+  }
   .tsec { font-size: 13px; font-weight: 600; color: #78716c; margin: 10px 0 4px; }
   .trow {
-    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
-    background: #fff; border: 1px solid #e7e5e4; border-radius: 10px; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 10px; padding: 11px 12px;
+    background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; margin-bottom: 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: opacity 0.25s ease, transform 0.25s ease;
   }
+  .trow.gone { opacity: 0; transform: translateX(16px); }
   .tdone {
-    width: 22px; height: 22px; border-radius: 50%; border: 2px solid #a8a29e;
+    width: 24px; height: 24px; border-radius: 50%; border: 2px solid #a8a29e;
     background: transparent; padding: 0; flex: none;
   }
+  .tdone:active { background: #6366f1; border-color: #6366f1; }
   .ttl { font-size: 15px; flex: 1; overflow-wrap: anywhere; }
   .tmeta { font-size: 12px; color: #dc2626; flex: none; }
-  .empty { font-size: 14px; color: #78716c; padding: 8px 0; }
+  .tmeta.future { color: #78716c; }
+  .empty { font-size: 14px; color: #78716c; padding: 14px 0; text-align: center; }
+  summary.tsec { cursor: pointer; user-select: none; }
   @media (prefers-color-scheme: dark) {
-    .trow { background: #292524; border-color: #44403c; }
+    .trow { background: #292524; border-color: #44403c; box-shadow: none; }
   }
 </style>
 </head>
 <body>
-<h1>📥 pocket-todo</h1>
+<header><img src="/icon.png" alt=""><h1>pocket-todo</h1></header>
 <form id="f">
   <input id="text" type="text" placeholder="例: 明日までに経費精算 急ぎ" autocomplete="off" autofocus>
-  <button id="btn" type="submit">タスクを放り込む</button>
+  <button id="btn" type="submit">送る</button>
 </form>
 <div id="status"></div>
 <p class="hint">優先度・タグ・期限はAIが自動で推定してNotionに登録します。<br>「経費精算おわった」「バス予約のタスク消して」のように書くと、完了・削除などの操作もできます(結果は通知でお知らせ)。</p>
 <section id="todayView" hidden>
-  <h2>今日なにやる？</h2>
+  <div class="vhead">
+    <h2>今日なにやる？</h2>
+    <button id="refreshBtn" type="button">🔄 更新</button>
+  </div>
   <div id="taskList"></div>
 </section>
 <button id="pushBtn" type="button">🔔 期限リマインド通知を有効にする</button>
@@ -110,7 +132,8 @@ export const formPage = `<!doctype html>
         throw new Error("送信が多すぎます。1分ほど待ってから再試行してください");
       }
       if (!res.ok) throw new Error("送信に失敗しました (" + res.status + ")");
-      status.className = "ok"; status.textContent = "✅ 放り込みました";
+      status.className = "ok"; status.textContent = "✅ 送りました";
+      setTimeout(() => { if (status.className === "ok") { status.textContent = ""; status.className = ""; } }, 3000);
       $("text").value = "";
       $("text").focus();
       // バックグラウンドのAI処理(1〜3秒)が終わった頃に今日ビューを更新
@@ -140,9 +163,9 @@ export const formPage = `<!doctype html>
     $("todayView").hidden = false;
     list.textContent = "";
     const sections = [
-      ["🔥 期限超過", data.overdue, true],
-      ["📌 今日が期限", data.dueToday, false],
-      ["⚡ 期限なし・優先度高", data.noDueHigh, false],
+      ["🔥 期限超過", data.overdue, "overdue"],
+      ["📌 今日が期限", data.dueToday, ""],
+      ["⚡ 優先度高", data.highPriority, "future"],
     ];
     let total = 0;
     for (const [label, items, showDue] of sections) {
@@ -167,8 +190,8 @@ export const formPage = `<!doctype html>
         row.appendChild(title);
         if (showDue && task.due) {
           const meta = document.createElement("div");
-          meta.className = "tmeta";
-          meta.textContent = task.due.slice(5).replace("-", "/") + "〜";
+          meta.className = showDue === "future" ? "tmeta future" : "tmeta";
+          meta.textContent = task.due.slice(5).replace("-", "/") + (showDue === "future" ? "まで" : "〜");
           row.appendChild(meta);
         }
         list.appendChild(row);
@@ -180,6 +203,34 @@ export const formPage = `<!doctype html>
       empty.textContent = "今日のタスクはありません🎉";
       list.appendChild(empty);
     }
+    // 近日(7日以内)は折りたたみで。朝イチの1画面目は「今日」で完結させる
+    if (data.upcoming && data.upcoming.length > 0) {
+      const det = document.createElement("details");
+      const sum = document.createElement("summary");
+      sum.className = "tsec";
+      sum.textContent = "📅 近日 (" + data.upcoming.length + "件)";
+      det.appendChild(sum);
+      for (const task of data.upcoming) {
+        const row = document.createElement("div");
+        row.className = "trow";
+        const done = document.createElement("button");
+        done.type = "button";
+        done.className = "tdone";
+        done.setAttribute("aria-label", "完了にする");
+        done.addEventListener("click", () => completeTask(task, row));
+        const title = document.createElement("div");
+        title.className = "ttl";
+        title.textContent = task.title;
+        const meta = document.createElement("div");
+        meta.className = "tmeta future";
+        meta.textContent = task.due.slice(5).replace("-", "/") + "まで";
+        row.appendChild(done);
+        row.appendChild(title);
+        row.appendChild(meta);
+        det.appendChild(row);
+      }
+      list.appendChild(det);
+    }
   }
   async function completeTask(task, row) {
     row.style.opacity = "0.4";
@@ -190,15 +241,24 @@ export const formPage = `<!doctype html>
         body: JSON.stringify({ id: task.id }),
       });
       if (!res.ok) throw new Error();
-      row.remove();
-      if (!$("taskList").querySelector(".trow")) loadToday();
+      row.classList.add("gone");
+      setTimeout(() => {
+        row.remove();
+        if (!$("taskList").querySelector(".trow")) loadToday();
+      }, 250);
     } catch {
       row.style.opacity = "1";
       const s = $("status");
       s.className = "err";
       s.textContent = "⚠️ 完了にできませんでした";
+      setTimeout(() => { s.textContent = ""; s.className = ""; }, 4000);
     }
   }
+  $("refreshBtn").addEventListener("click", loadToday);
+  // ホーム画面アプリを開き直した/前面に戻したときに自動で最新化する
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) loadToday();
+  });
   loadToday();
 
   // ---- Web Push (期限リマインド通知) ----
@@ -220,7 +280,7 @@ export const formPage = `<!doctype html>
       let registered = null;
       try { registered = localStorage.getItem("pocket-todo-push-registered"); } catch {}
       if (sub && registered && Notification.permission === "granted") {
-        pushStatus.textContent = "🔔 通知は有効です(毎朝8時、期限のあるタスクがある日だけ届きます)";
+        pushStatus.textContent = "🔔 通知は有効です(毎朝8時)";
         $("pushBtn").hidden = true;
       }
     } catch {}

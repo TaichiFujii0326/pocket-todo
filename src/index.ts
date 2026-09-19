@@ -3,7 +3,7 @@ import { fallbackFields, interpretInput, type Intent, type TaskFields } from "./
 import { iconPngBase64 } from "./icon";
 import {
   createNotionTask,
-  getPageDataSourceId,
+  getTaskPage,
   queryOpenTasks,
   trashTask,
   updateTaskStatus,
@@ -160,12 +160,22 @@ app.get("/api/today", async (c) => {
   }
   try {
     const today = jstToday();
+    const weekAhead = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    );
     const tasks = await queryOpenTasks(c.env.NOTION_TOKEN, c.env.NOTION_DATA_SOURCE_ID);
     return c.json({
       date: today,
       overdue: tasks.filter((t) => t.due && t.due < today).sort((a, b) => (a.due < b.due ? -1 : 1)),
       dueToday: tasks.filter((t) => t.due === today),
-      noDueHigh: tasks.filter((t) => !t.due && t.priority === "高"),
+      // 優先度高は期限の有無にかかわらず常に見せる(上2セクションと重複するものは除く)
+      highPriority: tasks
+        .filter((t) => t.priority === "高" && !(t.due && t.due <= today))
+        .sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1 : 1),
+      // 近日: 明日〜7日以内が期限のタスク(優先度高セクションに出ているものは除く)
+      upcoming: tasks
+        .filter((t) => t.due && t.due > today && t.due <= weekAhead && t.priority !== "高")
+        .sort((a, b) => (a.due < b.due ? -1 : 1)),
     });
   } catch (err) {
     console.error("today view failed:", err);
@@ -185,11 +195,17 @@ app.post("/api/complete", async (c) => {
   }
   try {
     // タスクDB外のページを操作しない(所属データソースの確認)
-    const dataSourceId = await getPageDataSourceId(c.env.NOTION_TOKEN, body.id);
-    if (dataSourceId !== c.env.NOTION_DATA_SOURCE_ID) {
+    const page = await getTaskPage(c.env.NOTION_TOKEN, body.id);
+    if (!page || page.dataSourceId !== c.env.NOTION_DATA_SOURCE_ID) {
       return c.json({ error: "task not found" }, 404);
     }
     await updateTaskStatus(c.env.NOTION_TOKEN, body.id, "完了");
+    // 完了通知は応答を待たせず裏で送る(タップの体感を守る)
+    c.executionCtx.waitUntil(
+      notify(c.env, "✅ 完了", `「${page.title}」を完了にしました`).catch((err) => {
+        console.error("complete notify failed:", err);
+      }),
+    );
     return c.json({ ok: true });
   } catch (err) {
     console.error("complete failed:", err);

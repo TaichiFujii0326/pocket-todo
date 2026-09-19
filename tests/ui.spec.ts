@@ -8,7 +8,7 @@ test.describe("UI", () => {
     await page.goto("/");
     await expect(page.locator("#text")).toBeVisible();
     await expect(page.locator("#btn")).toBeVisible();
-    await expect(page.locator("#btn")).toContainText("タスクを放り込む");
+    await expect(page.locator("#btn")).toContainText("送る");
   });
 
   test("first submit prompts for the token, then succeeds", async ({ page }) => {
@@ -17,7 +17,7 @@ test.describe("UI", () => {
     page.once("dialog", (dialog) => dialog.accept(TOKEN!));
     await page.fill("#text", "E2Eテスト UIからの登録");
     await page.click("#btn");
-    await expect(page.locator("#status")).toContainText("放り込みました");
+    await expect(page.locator("#status")).toContainText("送りました");
     await expect(page.locator("#text")).toHaveValue("");
   });
 
@@ -31,7 +31,7 @@ test.describe("UI", () => {
     // dialogハンドラを登録しない = promptが出たらテストはタイムアウトで落ちる
     await page.fill("#text", "E2Eテスト 保存済みトークンでの登録");
     await page.click("#btn");
-    await expect(page.locator("#status")).toContainText("放り込みました");
+    await expect(page.locator("#status")).toContainText("送りました");
   });
 
   test("wrong stored token shows an error and clears it", async ({ page }) => {

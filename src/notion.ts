@@ -102,9 +102,12 @@ export async function queryStaleCompleted(
   }));
 }
 
-// ページの親データソースID。存在しない/アクセス不可ならnull。
-// /api/completeが設定データソース外のページを操作しないことの確認に使う
-export async function getPageDataSourceId(token: string, pageId: string): Promise<string | null> {
+// ページの親データソースIDとタイトル。存在しない/アクセス不可ならnull。
+// /api/completeの所属確認(データソース外のページを操作しない)と完了通知の文言に使う
+export async function getTaskPage(
+  token: string,
+  pageId: string,
+): Promise<{ dataSourceId: string | null; title: string } | null> {
   const res = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
     headers: { Authorization: `Bearer ${token}`, "Notion-Version": NOTION_VERSION },
   });
@@ -112,8 +115,14 @@ export async function getPageDataSourceId(token: string, pageId: string): Promis
   if (!res.ok) {
     throw new Error(`Notion page fetch error ${res.status}: ${await res.text()}`);
   }
-  const data = (await res.json()) as { parent?: { data_source_id?: string } };
-  return data.parent?.data_source_id ?? null;
+  const data = (await res.json()) as {
+    parent?: { data_source_id?: string };
+    properties?: { Name?: { title?: Array<{ plain_text: string }> } };
+  };
+  return {
+    dataSourceId: data.parent?.data_source_id ?? null,
+    title: data.properties?.Name?.title?.map((t) => t.plain_text).join("") || "(無題)",
+  };
 }
 
 export async function updateTaskStatus(token: string, pageId: string, status: string): Promise<void> {
