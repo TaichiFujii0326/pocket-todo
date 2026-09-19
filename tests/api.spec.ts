@@ -37,6 +37,32 @@ test.describe("API", () => {
     expect(res.status()).toBe(401);
   });
 
+  test("POST /api/push/reset without auth is rejected", async ({ request }) => {
+    const res = await request.post("/api/push/reset");
+    expect(res.status()).toBe(401);
+  });
+
+  test("POST /api/push/subscribe rejects a non-push-service endpoint", async ({ request }) => {
+    test.skip(!TOKEN, "POCKET_TODO_TOKEN not set");
+    const res = await request.post("/api/push/subscribe", {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      data: {
+        endpoint: "https://attacker.example.com/receiver",
+        keys: { p256dh: "A".repeat(87), auth: "B".repeat(22) },
+      },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test("POST /api/complete rejects malformed ids", async ({ request }) => {
+    test.skip(!TOKEN, "POCKET_TODO_TOKEN not set");
+    const res = await request.post("/api/complete", {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      data: { id: "not-a-page-id!" },
+    });
+    expect(res.status()).toBe(400);
+  });
+
   test("POST /api/tasks with non-string text is a 400", async ({ request }) => {
     test.skip(!TOKEN, "POCKET_TODO_TOKEN not set");
     const res = await request.post("/api/tasks", {

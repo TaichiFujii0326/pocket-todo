@@ -1,10 +1,17 @@
 import { Hono } from "hono";
 import { fallbackFields, interpretInput, type Intent, type TaskFields } from "./classify";
 import { iconPngBase64 } from "./icon";
-import { createNotionTask, queryOpenTasks, trashTask, updateTaskStatus, type OpenTask } from "./notion";
+import {
+  createNotionTask,
+  getPageDataSourceId,
+  queryOpenTasks,
+  trashTask,
+  updateTaskStatus,
+  type OpenTask,
+} from "./notion";
 import { formPage } from "./page";
-import { parseSubscription, saveSubscription, sendPushToAll } from "./push";
-import { sendDailyReminder } from "./remind";
+import { deleteAllSubscriptions, parseSubscription, saveSubscription, sendPushToAll } from "./push";
+import { cleanupCompletedTasks, sendDailyReminder } from "./remind";
 
 type Env = {
   AUTH_TOKEN: string;
@@ -81,8 +88,20 @@ app.post("/api/push/subscribe", async (c) => {
   if (!sub) {
     return c.json({ error: "invalid subscription" }, 400);
   }
-  await saveSubscription(c.env, sub);
+  if (!(await saveSubscription(c.env, sub))) {
+    return c.json({ error: "subscription limit reached" }, 429);
+  }
   return c.json({ ok: true });
+});
+
+// 全購読の破棄。トークンローテーション手順の一部(CLAUDE.md参照)
+app.post("/api/push/reset", async (c) => {
+  const authError = checkAuth(c);
+  if (authError) {
+    return c.json({ error: authError === 503 ? "server not configured" : "unauthorized" }, authError as 401 | 503);
+  }
+  const removed = await deleteAllSubscriptions(c.env);
+  return c.json({ removed });
 });
 
 // テスト通知(設定確認用)
@@ -165,6 +184,11 @@ app.post("/api/complete", async (c) => {
     return c.json({ error: "invalid task id" }, 400);
   }
   try {
+    // タスクDB外のページを操作しない(所属データソースの確認)
+    const dataSourceId = await getPageDataSourceId(c.env.NOTION_TOKEN, body.id);
+    if (dataSourceId !== c.env.NOTION_DATA_SOURCE_ID) {
+      return c.json({ error: "task not found" }, 404);
+    }
     await updateTaskStatus(c.env.NOTION_TOKEN, body.id, "完了");
     return c.json({ ok: true });
   } catch (err) {
@@ -263,9 +287,15 @@ export default {
   // 毎朝8時(JST) = 23:00 UTC に発火(wrangler.jsoncのtriggers参照)
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
     ctx.waitUntil(
-      sendDailyReminder(env).catch((err) => {
-        console.error("daily reminder failed:", err);
-      }),
+      (async () => {
+        await sendDailyReminder(env).catch((err) => {
+          console.error("daily reminder failed:", err);
+        });
+        // リマインドとは独立に、完了から数日経ったタスクを掃除する
+        await cleanupCompletedTasks(env).catch((err) => {
+          console.error("cleanup failed:", err);
+        });
+      })(),
     );
   },
 };

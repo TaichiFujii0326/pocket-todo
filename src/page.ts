@@ -215,7 +215,11 @@ export const formPage = `<!doctype html>
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
       const reg = await navigator.serviceWorker.register("/sw.js");
       const sub = await reg.pushManager.getSubscription();
-      if (sub && Notification.permission === "granted") {
+      // サーバー登録まで完了した証跡(フラグ)も確認する。ブラウザ側の購読だけ
+      // 成功してサーバー保存に失敗した状態を「有効」と誤表示しないため
+      let registered = null;
+      try { registered = localStorage.getItem("pocket-todo-push-registered"); } catch {}
+      if (sub && registered && Notification.permission === "granted") {
         pushStatus.textContent = "🔔 通知は有効です(毎朝8時、期限のあるタスクがある日だけ届きます)";
         $("pushBtn").hidden = true;
       }
@@ -243,6 +247,7 @@ export const formPage = `<!doctype html>
         body: JSON.stringify(sub),
       });
       if (!res.ok) throw new Error("登録に失敗しました (" + res.status + ")");
+      try { localStorage.setItem("pocket-todo-push-registered", "1"); } catch {}
       pushStatus.textContent = "✅ 通知を有効にしました";
       $("pushBtn").hidden = true;
     } catch (err) {

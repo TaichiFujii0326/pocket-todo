@@ -5,26 +5,21 @@ const NOTION_API = "https://api.notion.com/v1/pages";
 const NOTION_VERSION = "2025-09-03";
 
 export type DueTask = { title: string; due: string };
+
+// Notionの期限は日時(2026-09-19T10:00:00+09:00等)のこともある。
+// 「今日」との比較はJSTの暦日に正規化してから行う(時刻つき期限が一覧から消えるバグの対策)
+export function normalizeDueToJstDate(start: string): string {
+  if (!start.includes("T")) return start;
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date(start));
+}
 export type OpenTask = { id: string; title: string; status: string; due: string; priority: string | null };
 
-// 未完了(完了以外)のタスク一覧。意図判定で「どのタスクへの操作か」を選ばせるのに使う
+// 未完了(完了以外)のタスク一覧。意図判定で「どのタスクへの操作か」を選ばせるのに使う。
+// has_moreをカーソルで辿る(上限300件: 今日ビューの表示漏れとAIの対象選択漏れの対策)
 export async function queryOpenTasks(token: string, dataSourceId: string): Promise<OpenTask[]> {
-  const res = await fetch(`https://api.notion.com/v1/data_sources/${dataSourceId}/query`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Notion-Version": NOTION_VERSION,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      filter: { property: "ステータス", status: { does_not_equal: "完了" } },
-      page_size: 100,
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Notion query error ${res.status}: ${await res.text()}`);
-  }
-  const data = (await res.json()) as {
+  type QueryPage = {
+    has_more: boolean;
+    next_cursor: string | null;
     results: Array<{
       id: string;
       properties: {
@@ -35,13 +30,90 @@ export async function queryOpenTasks(token: string, dataSourceId: string): Promi
       };
     }>;
   };
+
+  const tasks: OpenTask[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < 3; page++) {
+    const res = await fetch(`https://api.notion.com/v1/data_sources/${dataSourceId}/query`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Notion-Version": NOTION_VERSION,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        filter: { property: "ステータス", status: { does_not_equal: "完了" } },
+        page_size: 100,
+        ...(cursor ? { start_cursor: cursor } : {}),
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Notion query error ${res.status}: ${await res.text()}`);
+    }
+    const data = (await res.json()) as QueryPage;
+    for (const p of data.results) {
+      tasks.push({
+        id: p.id,
+        title: p.properties.Name?.title?.map((t) => t.plain_text).join("") || "(無題)",
+        status: p.properties.ステータス?.status?.name ?? "未着手",
+        due: p.properties.期限?.date?.start ? normalizeDueToJstDate(p.properties.期限.date.start) : "",
+        priority: p.properties.優先度?.select?.name ?? null,
+      });
+    }
+    if (!data.has_more || !data.next_cursor) break;
+    cursor = data.next_cursor;
+  }
+  return tasks;
+}
+
+// 完了済みかつ最終編集が指定日時以前のタスク(自動掃除の対象)。
+// Notionは「完了にした日時」を持たないため、最終編集日時を近似として使う
+export async function queryStaleCompleted(
+  token: string,
+  dataSourceId: string,
+  beforeISO: string,
+): Promise<Array<{ id: string; title: string }>> {
+  const res = await fetch(`https://api.notion.com/v1/data_sources/${dataSourceId}/query`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Notion-Version": NOTION_VERSION,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      filter: {
+        and: [
+          { property: "ステータス", status: { equals: "完了" } },
+          { timestamp: "last_edited_time", last_edited_time: { on_or_before: beforeISO } },
+        ],
+      },
+      page_size: 100,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Notion query error ${res.status}: ${await res.text()}`);
+  }
+  const data = (await res.json()) as {
+    results: Array<{ id: string; properties: { Name?: { title?: Array<{ plain_text: string }> } } }>;
+  };
   return data.results.map((page) => ({
     id: page.id,
     title: page.properties.Name?.title?.map((t) => t.plain_text).join("") || "(無題)",
-    status: page.properties.ステータス?.status?.name ?? "未着手",
-    due: page.properties.期限?.date?.start ?? "",
-    priority: page.properties.優先度?.select?.name ?? null,
   }));
+}
+
+// ページの親データソースID。存在しない/アクセス不可ならnull。
+// /api/completeが設定データソース外のページを操作しないことの確認に使う
+export async function getPageDataSourceId(token: string, pageId: string): Promise<string | null> {
+  const res = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+    headers: { Authorization: `Bearer ${token}`, "Notion-Version": NOTION_VERSION },
+  });
+  if (res.status === 404 || res.status === 400) return null;
+  if (!res.ok) {
+    throw new Error(`Notion page fetch error ${res.status}: ${await res.text()}`);
+  }
+  const data = (await res.json()) as { parent?: { data_source_id?: string } };
+  return data.parent?.data_source_id ?? null;
 }
 
 export async function updateTaskStatus(token: string, pageId: string, status: string): Promise<void> {
@@ -111,7 +183,7 @@ export async function queryDueTasks(
   };
   return data.results.map((page) => ({
     title: page.properties.Name?.title?.map((t) => t.plain_text).join("") || "(無題)",
-    due: page.properties.期限?.date?.start ?? "",
+    due: page.properties.期限?.date?.start ? normalizeDueToJstDate(page.properties.期限.date.start) : "",
   }));
 }
 
