@@ -50,8 +50,8 @@ app.get("/sw.js", (c) => {
   try { data = event.data ? event.data.json() : {}; } catch {}
   event.waitUntil(self.registration.showNotification(data.title || "pocket-todo", {
     body: data.body || "",
-    icon: "/icon.png",
-    badge: "/icon.png",
+    icon: "/icon.png?v=2",
+    badge: "/icon.png?v=2",
   }));
 });
 self.addEventListener("notificationclick", (event) => {
@@ -68,7 +68,7 @@ app.get("/manifest.json", (c) =>
     display: "standalone",
     background_color: "#f5f5f4",
     theme_color: "#2563eb",
-    icons: [{ src: "/icon.png", sizes: "512x512", type: "image/png" }],
+    icons: [{ src: "/icon.png?v=2", sizes: "512x512", type: "image/png" }],
   }),
 );
 
@@ -263,9 +263,17 @@ async function processTask(env: Env, text: string): Promise<void> {
 
   try {
     switch (intent.action) {
-      case "create":
-        await createWithRetry(env, intent.task ?? fallbackFields(text));
+      case "create": {
+        const fields = intent.task ?? fallbackFields(text);
+        // 期限の言及がないタスクはデフォルトで1週間後を期限にする(放置での埋もれ防止)
+        if (!fields.due) {
+          fields.due = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(
+            new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          );
+        }
+        await createWithRetry(env, fields);
         break;
+      }
       case "complete":
       case "set_status": {
         const target = intent.target_index != null ? openTasks[intent.target_index] : undefined;

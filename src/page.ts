@@ -8,7 +8,7 @@ export const formPage = `<!doctype html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icon.png">
+<link rel="apple-touch-icon" href="/icon.png?v=2">
 <title>pocket-todo</title>
 <style>
   :root { color-scheme: light dark; }
@@ -44,9 +44,10 @@ export const formPage = `<!doctype html>
   #status.ok { color: #16a34a; }
   #status.err { color: #dc2626; }
   .hint { font-size: 12px; color: #78716c; }
+  .composer { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
   #pushBtn {
     background: transparent; color: #6366f1; border: 1px solid #6366f1;
-    font-size: 14px; padding: 10px; margin-top: auto;
+    font-size: 14px; padding: 10px;
   }
   #pushStatus { font-size: 12px; color: #78716c; min-height: 16px; }
   .vhead { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
@@ -82,13 +83,7 @@ export const formPage = `<!doctype html>
 </style>
 </head>
 <body>
-<header><img src="/icon.png" alt=""><h1>pocket-todo</h1></header>
-<form id="f">
-  <input id="text" type="text" placeholder="例: 明日までに経費精算 急ぎ" autocomplete="off" autofocus>
-  <button id="btn" type="submit">送る</button>
-</form>
-<div id="status"></div>
-<p class="hint">優先度・タグ・期限はAIが自動で推定してNotionに登録します。<br>「経費精算おわった」「バス予約のタスク消して」のように書くと、完了・削除などの操作もできます(結果は通知でお知らせ)。</p>
+<header><img src="/icon.png?v=2" alt=""><h1>pocket-todo</h1></header>
 <section id="todayView" hidden>
   <div class="vhead">
     <h2>今日なにやる？</h2>
@@ -96,6 +91,14 @@ export const formPage = `<!doctype html>
   </div>
   <div id="taskList"></div>
 </section>
+<div class="composer">
+  <p class="hint">AIが優先度・タグ・期限を推定してNotionに登録します(期限を書かなければ1週間後)。「〜おわった」「〜消して」で完了・削除もできます。</p>
+  <form id="f">
+    <input id="text" type="text" placeholder="例: 明日までに経費精算 急ぎ" autocomplete="off">
+    <button id="btn" type="submit">送る</button>
+  </form>
+  <div id="status"></div>
+</div>
 <button id="pushBtn" type="button">🔔 期限リマインド通知を有効にする</button>
 <div id="pushStatus"></div>
 <script>
@@ -280,7 +283,6 @@ export const formPage = `<!doctype html>
       let registered = null;
       try { registered = localStorage.getItem("pocket-todo-push-registered"); } catch {}
       if (sub && registered && Notification.permission === "granted") {
-        pushStatus.textContent = "🔔 通知は有効です(毎朝8時)";
         $("pushBtn").hidden = true;
       }
     } catch {}
@@ -309,6 +311,7 @@ export const formPage = `<!doctype html>
       if (!res.ok) throw new Error("登録に失敗しました (" + res.status + ")");
       try { localStorage.setItem("pocket-todo-push-registered", "1"); } catch {}
       pushStatus.textContent = "✅ 通知を有効にしました";
+      setTimeout(() => { pushStatus.textContent = ""; }, 3000);
       $("pushBtn").hidden = true;
     } catch (err) {
       pushStatus.textContent = "⚠️ " + err.message;
