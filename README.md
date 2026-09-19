@@ -2,6 +2,11 @@
 
 スマホから**2秒でタスクを放り込める**、AI自動分類つきのタスク入力ツール。
 
+<p align="center">
+  <img src="docs/images/app-light.png" width="280" alt="今日ビュー(ライトモード)">
+  <img src="docs/images/app-dark.png" width="280" alt="今日ビュー(ダークモード)">
+</p>
+
 「思いついたタスクをNotionに入れるまでの手数が多くて、結局記録しない」問題を解決します。
 1行の自由文を投げるだけで、Claude が意図を判定し、Notionのカンバンボードを操作します。
 
@@ -84,6 +89,22 @@ DBには `Name`(タイトル) / `ステータス`(ステータス) / `優先度`
 cp .dev.vars.example .dev.vars  # 値を埋める
 npm run dev
 ```
+
+## テスト
+
+Playwright によるE2Eテスト(API+UI、ライト/ダーク両テーマ)を同梱しています。
+
+```bash
+npm run test:e2e                                  # 本番URLに対して実行(書き込み系は自動スキップ)
+POCKET_TODO_TOKEN=<AUTH_TOKEN> npm run test:e2e   # 書き込み系テストも含めて実行
+
+# ローカルで全件実行する場合
+printf 'AUTH_TOKEN=devtoken\nANTHROPIC_API_KEY=dummy\nNOTION_TOKEN=dummy\nVAPID_PRIVATE_KEY=dummy\n' > .dev.vars
+npx wrangler dev --port 8787 &
+POCKET_TODO_URL=http://localhost:8787 POCKET_TODO_TOKEN=devtoken npm run test:e2e
+```
+
+外部APIキーが無くても、認証・バリデーション・UI・フォールバック経路(タスクを失わない設計)まで検証できます。
 
 ## 開発フロー
 
