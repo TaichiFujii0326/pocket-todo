@@ -1,0 +1,12 @@
+# ローカル開発用のシークレット。このファイルを .dev.vars にコピーして値を埋める。
+# 本番へは `wrangler secret put <NAME>` で登録する。
+
+# このAPIを叩くための合言葉。自分で決めるランダム文字列 (例: openssl rand -hex 24 で生成)
+AUTH_TOKEN=
+
+# console.anthropic.com → API Keys で発行 (sk-ant-...)
+ANTHROPIC_API_KEY=
+
+# notion.so/my-integrations で内部インテグレーションを作成して発行 (ntn_...)
+# 作成後、Notionの「タスク管理」データベースにそのインテグレーションを接続すること
+NOTION_TOKEN=

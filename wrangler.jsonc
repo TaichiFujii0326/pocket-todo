@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pocket-todo",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    // Notionの「タスク管理」データソースID（秘密情報ではないのでvarsでOK）
+    "NOTION_DATA_SOURCE_ID": "c457a247-0051-4be5-8572-4bbb571479ea"
+  }
+  // シークレットは `wrangler secret put <NAME>` で登録する:
+  //   AUTH_TOKEN         - このAPIを叩くための合言葉（自分で決めるランダム文字列）
+  //   ANTHROPIC_API_KEY  - console.anthropic.com で発行
+  //   NOTION_TOKEN       - notion.so/my-integrations で発行（ntn_...）
+}
