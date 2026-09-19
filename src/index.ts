@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { classifyTask, fallbackFields, type TaskFields } from "./classify";
+import { iconPngBase64 } from "./icon";
 import { createNotionTask } from "./notion";
 import { formPage } from "./page";
+import { parseSubscription, saveSubscription, sendPushToAll } from "./push";
 import { sendDailyReminder } from "./remind";
 
 type Env = {
@@ -9,7 +11,10 @@ type Env = {
   ANTHROPIC_API_KEY: string;
   NOTION_TOKEN: string;
   NOTION_DATA_SOURCE_ID: string;
-  NTFY_TOPIC: string;
+  VAPID_PUBLIC_KEY: string;
+  VAPID_PRIVATE_KEY: string;
+  VAPID_SUBJECT: string;
+  PUSH_SUBS: KVNamespace;
   RATE_LIMITER: { limit(options: { key: string }): Promise<{ success: boolean }> };
 };
 
@@ -27,7 +32,71 @@ app.get("/", (c) => {
   // L-01対策: クリックジャッキング防止(iframe埋め込み禁止)とMIMEスニッフィング防止
   c.header("Content-Security-Policy", "frame-ancestors 'none'");
   c.header("X-Content-Type-Options", "nosniff");
-  return c.html(formPage);
+  return c.html(formPage.replace("__VAPID_PUBLIC_KEY__", c.env.VAPID_PUBLIC_KEY));
+});
+
+// Web Push用のService Worker。プッシュ受信時に通知を表示する
+app.get("/sw.js", (c) => {
+  c.header("Content-Type", "application/javascript; charset=utf-8");
+  return c.body(`self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch {}
+  event.waitUntil(self.registration.showNotification(data.title || "pocket-todo", {
+    body: data.body || "",
+    icon: "/icon.png",
+    badge: "/icon.png",
+  }));
+});
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(clients.openWindow("/"));
+});`);
+});
+
+app.get("/manifest.json", (c) =>
+  c.json({
+    name: "pocket-todo",
+    short_name: "pocket-todo",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#f5f5f4",
+    theme_color: "#2563eb",
+    icons: [{ src: "/icon.png", sizes: "512x512", type: "image/png" }],
+  }),
+);
+
+app.get("/icon.png", (c) => {
+  c.header("Content-Type", "image/png");
+  c.header("Cache-Control", "public, max-age=86400");
+  return c.body(Uint8Array.from(atob(iconPngBase64), (ch) => ch.charCodeAt(0)));
+});
+
+// 端末のプッシュ購読情報を登録する(フォームの「通知を有効にする」から呼ばれる)
+app.post("/api/push/subscribe", async (c) => {
+  const authError = checkAuth(c);
+  if (authError) {
+    return c.json({ error: authError === 503 ? "server not configured" : "unauthorized" }, authError as 401 | 503);
+  }
+  const sub = parseSubscription(await c.req.json().catch(() => null));
+  if (!sub) {
+    return c.json({ error: "invalid subscription" }, 400);
+  }
+  await saveSubscription(c.env, sub);
+  return c.json({ ok: true });
+});
+
+// テスト通知(設定確認用)
+app.post("/api/push/test", async (c) => {
+  const authError = checkAuth(c);
+  if (authError) {
+    return c.json({ error: authError === 503 ? "server not configured" : "unauthorized" }, authError as 401 | 503);
+  }
+  const { success } = await c.env.RATE_LIMITER.limit({ key: "remind" });
+  if (!success) {
+    return c.json({ error: "rate limited" }, 429);
+  }
+  const sent = await sendPushToAll(c.env, "🔔 テスト通知", "プッシュ通知の設定が完了しました🎉");
+  return c.json({ sent });
 });
 
 // タスク登録。応答は即返し、AI分類とNotion書き込みはwaitUntilでバックグラウンド実行する。

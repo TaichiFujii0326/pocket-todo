@@ -7,6 +7,8 @@ export const formPage = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon.png">
 <title>pocket-todo</title>
 <style>
   :root { color-scheme: light dark; }
@@ -37,6 +39,11 @@ export const formPage = `<!doctype html>
   #status.ok { color: #16a34a; }
   #status.err { color: #dc2626; }
   .hint { font-size: 12px; color: #78716c; }
+  #pushBtn {
+    background: transparent; color: #2563eb; border: 1px solid #2563eb;
+    font-size: 14px; padding: 10px; margin-top: auto;
+  }
+  #pushStatus { font-size: 12px; color: #78716c; min-height: 16px; }
 </style>
 </head>
 <body>
@@ -47,6 +54,8 @@ export const formPage = `<!doctype html>
 </form>
 <div id="status"></div>
 <p class="hint">優先度・タグ・期限はAIが自動で推定してNotionに登録します。</p>
+<button id="pushBtn" type="button">🔔 期限リマインド通知を有効にする</button>
+<div id="pushStatus"></div>
 <script>
   const $ = (id) => document.getElementById(id);
   function getToken() {
@@ -88,6 +97,55 @@ export const formPage = `<!doctype html>
       status.className = "err"; status.textContent = "⚠️ " + err.message;
     } finally {
       $("btn").disabled = false;
+    }
+  });
+
+  // ---- Web Push (期限リマインド通知) ----
+  const VAPID_PUBLIC_KEY = "__VAPID_PUBLIC_KEY__";
+  function urlB64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(base64);
+    return Uint8Array.from(raw, (ch) => ch.charCodeAt(0));
+  }
+  const pushStatus = $("pushStatus");
+  async function refreshPushStatus() {
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      const sub = await reg.pushManager.getSubscription();
+      if (sub && Notification.permission === "granted") {
+        pushStatus.textContent = "🔔 通知は有効です(毎朝8時、期限のあるタスクがある日だけ届きます)";
+        $("pushBtn").hidden = true;
+      }
+    } catch {}
+  }
+  refreshPushStatus();
+  $("pushBtn").addEventListener("click", async () => {
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        throw new Error("この環境は通知非対応です。iPhoneでは「ホーム画面に追加」したアイコンから開いてください");
+      }
+      const token = getToken();
+      if (!token) return;
+      pushStatus.textContent = "設定中…";
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") throw new Error("通知が許可されませんでした");
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+      const res = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify(sub),
+      });
+      if (!res.ok) throw new Error("登録に失敗しました (" + res.status + ")");
+      pushStatus.textContent = "✅ 通知を有効にしました";
+      $("pushBtn").hidden = true;
+    } catch (err) {
+      pushStatus.textContent = "⚠️ " + err.message;
     }
   });
 </script>

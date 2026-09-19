@@ -11,6 +11,6 @@ ANTHROPIC_API_KEY=
 # 作成後、Notionの「タスク管理」データベースにそのインテグレーションを接続すること
 NOTION_TOKEN=
 
-# 期限リマインドの通知先ntfyトピック名。推測されにくいランダムな名前にする
-# (例: pocket-todo-a1b2c3d4)。iPhoneのntfyアプリで同じトピックを購読する
-NTFY_TOPIC=
+# Web Push用のVAPID秘密鍵 (npx web-push generate-vapid-keys で生成。
+# 公開鍵とmailto連絡先は wrangler.jsonc の vars 側に設定する)
+VAPID_PRIVATE_KEY=

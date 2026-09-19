@@ -51,7 +51,10 @@ npm install
 wrangler secret put AUTH_TOKEN         # 自分で決める合言葉 (openssl rand -hex 24)
 wrangler secret put ANTHROPIC_API_KEY  # sk-ant-...
 wrangler secret put NOTION_TOKEN       # ntn_... (対象DBへの接続を忘れずに)
-wrangler secret put NTFY_TOPIC         # リマインド通知先のntfyトピック名(推測されにくいランダムな名前に)
+
+# Web Push用のVAPID鍵 (npx web-push generate-vapid-keys で生成)
+wrangler secret put VAPID_PRIVATE_KEY  # 秘密鍵。公開鍵とmailtoは wrangler.jsonc の vars に設定
+
 
 # デプロイ
 npm run deploy
@@ -78,6 +81,6 @@ npm run dev
 ## ロードマップ
 
 - [x] v1: 爆速入力(iOSショートカット + Webフォーム + AI分類)
-- [x] v3: 期限リマインド — 毎朝8時(JST)に「期限が今日/超過」の未完了タスクを[ntfy.sh](https://ntfy.sh)へプッシュ通知(Workers Cron Triggers)。該当なしの日は通知しない
+- [x] v3: 期限リマインド — 毎朝8時(JST)に「期限が今日/超過」の未完了タスクを**自前のWeb Push**(VAPID + Service Worker)でプッシュ通知。外部の通知サービスに依存せず、フォームのPWAがそのまま通知を受け取る。該当なしの日は通知しない
 - [ ] v2: 自分好みのタスクビュー
 - [ ] v4: 複数ソース(カレンダー等)の集約

@@ -10,8 +10,15 @@
   },
   "vars": {
     // Notionの「タスク管理」データソースID（秘密情報ではないのでvarsでOK）
-    "NOTION_DATA_SOURCE_ID": "c457a247-0051-4be5-8572-4bbb571479ea"
+    "NOTION_DATA_SOURCE_ID": "c457a247-0051-4be5-8572-4bbb571479ea",
+    // Web PushのVAPID公開鍵(公開情報)と連絡先。秘密鍵はsecretのVAPID_PRIVATE_KEY
+    "VAPID_PUBLIC_KEY": "BAESEznZW3V9iwPUeIIZk79190EDEaDBD82f8xc0ir1rdGmDoWyJgK-TXdYL4P8sq4ikKnGyiO6g7Y5YfUU1NBc",
+    "VAPID_SUBJECT": "mailto:taichi.klavier0326@gmail.com"
   },
+  "kv_namespaces": [
+    // プッシュ通知の購読情報(端末ごとのエンドポイント)を保存する
+    { "binding": "PUSH_SUBS", "id": "b18e4fac096d4a8b9922a89aa17ac340" }
+  ],
   "unsafe": {
     "bindings": [
       // トークン漏洩時にAPIクレジットを溶かされる速度を抑える減速装置。
