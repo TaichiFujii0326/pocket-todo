@@ -85,6 +85,18 @@ cp .dev.vars.example .dev.vars  # 値を埋める
 npm run dev
 ```
 
+## 開発フロー
+
+AIエージェントを組み合わせた開発サイクルで運用しています([CLAUDE.md](./CLAUDE.md)に詳細):
+
+```
+仕様のグリル(/grill-with-docs) → ADR/用語集に決定を記録 → 実装
+→ 別AI(Codex)による第三者レビュー → 指摘を検証して対応 or 受容
+→ Playwright E2E(ローカル+本番) → コミット
+```
+
+実例: [セキュリティレビューと対応](./SECURITY_REVIEW_CODEX.md)、[ADR-0005(レビュー起点でntfy→Web Pushへ転換)](./docs/adr/0005-web-push-over-ntfy.md)
+
 ## 設計ドキュメント
 
 - [CONTEXT.md](./CONTEXT.md) — このプロジェクトの用語集
