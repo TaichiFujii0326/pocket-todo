@@ -161,6 +161,29 @@ export const formPage = `<!doctype html>
       renderToday(await res.json());
     } catch {}
   }
+  // 1行ぶんのタスクカードを作る(通常セクションと近日折りたたみで共通)
+  function makeRow(task, meta) {
+    const row = document.createElement("div");
+    row.className = "trow";
+    const done = document.createElement("button");
+    done.type = "button";
+    done.className = "tdone";
+    done.setAttribute("aria-label", "完了にする");
+    done.addEventListener("click", () => completeTask(task, row));
+    const title = document.createElement("div");
+    title.className = "ttl";
+    title.textContent = task.title;
+    row.appendChild(done);
+    row.appendChild(title);
+    if (meta) {
+      const m = document.createElement("div");
+      m.className = meta.future ? "tmeta future" : "tmeta";
+      m.textContent = meta.text;
+      row.appendChild(m);
+    }
+    return row;
+  }
+
   function renderToday(data) {
     const list = $("taskList");
     $("todayView").hidden = false;
@@ -179,25 +202,10 @@ export const formPage = `<!doctype html>
       head.textContent = label + " (" + items.length + ")";
       list.appendChild(head);
       for (const task of items) {
-        const row = document.createElement("div");
-        row.className = "trow";
-        const done = document.createElement("button");
-        done.type = "button";
-        done.className = "tdone";
-        done.setAttribute("aria-label", "完了にする");
-        done.addEventListener("click", () => completeTask(task, row));
-        const title = document.createElement("div");
-        title.className = "ttl";
-        title.textContent = task.title;
-        row.appendChild(done);
-        row.appendChild(title);
-        if (showDue && task.due) {
-          const meta = document.createElement("div");
-          meta.className = showDue === "future" ? "tmeta future" : "tmeta";
-          meta.textContent = task.due.slice(5).replace("-", "/") + (showDue === "future" ? "まで" : "〜");
-          row.appendChild(meta);
-        }
-        list.appendChild(row);
+        const meta = showDue && task.due
+          ? { text: task.due.slice(5).replace("-", "/") + (showDue === "future" ? "まで" : "〜"), future: showDue === "future" }
+          : null;
+        list.appendChild(makeRow(task, meta));
       }
     }
     if (total === 0) {
@@ -214,23 +222,7 @@ export const formPage = `<!doctype html>
       sum.textContent = "📅 近日 (" + data.upcoming.length + "件)";
       det.appendChild(sum);
       for (const task of data.upcoming) {
-        const row = document.createElement("div");
-        row.className = "trow";
-        const done = document.createElement("button");
-        done.type = "button";
-        done.className = "tdone";
-        done.setAttribute("aria-label", "完了にする");
-        done.addEventListener("click", () => completeTask(task, row));
-        const title = document.createElement("div");
-        title.className = "ttl";
-        title.textContent = task.title;
-        const meta = document.createElement("div");
-        meta.className = "tmeta future";
-        meta.textContent = task.due.slice(5).replace("-", "/") + "まで";
-        row.appendChild(done);
-        row.appendChild(title);
-        row.appendChild(meta);
-        det.appendChild(row);
+        det.appendChild(makeRow(task, { text: task.due.slice(5).replace("-", "/") + "まで", future: true }));
       }
       list.appendChild(det);
     }

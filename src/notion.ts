@@ -1,4 +1,5 @@
 import type { TaskFields } from "./classify";
+import { jstDate } from "./jst";
 
 const NOTION_API = "https://api.notion.com/v1/pages";
 // data_source_id を parent に指定できるAPIバージョン
@@ -10,7 +11,7 @@ export type DueTask = { title: string; due: string };
 // 「今日」との比較はJSTの暦日に正規化してから行う(時刻つき期限が一覧から消えるバグの対策)
 export function normalizeDueToJstDate(start: string): string {
   if (!start.includes("T")) return start;
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date(start));
+  return jstDate(new Date(start));
 }
 export type OpenTask = { id: string; title: string; status: string; due: string; priority: string | null };
 
@@ -162,6 +163,9 @@ export async function queryDueTasks(
   dataSourceId: string,
   todayISO: string,
 ): Promise<DueTask[]> {
+  const nextDayISO = new Date(new Date(`${todayISO}T00:00:00Z`).getTime() + 86_400_000)
+    .toISOString()
+    .slice(0, 10);
   const res = await fetch(`https://api.notion.com/v1/data_sources/${dataSourceId}/query`, {
     method: "POST",
     headers: {
@@ -172,7 +176,9 @@ export async function queryDueTasks(
     body: JSON.stringify({
       filter: {
         and: [
-          { property: "期限", date: { on_or_before: todayISO } },
+          // 「今日以前」を日付のみ(on_or_before)で書くと、当日の時刻つき期限
+          // (2026-09-20T22:00等)が0時との比較で弾かれる。「翌日より前」で表現する
+          { property: "期限", date: { before: nextDayISO } },
           { property: "ステータス", status: { does_not_equal: "完了" } },
         ],
       },

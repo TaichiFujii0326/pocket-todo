@@ -1,3 +1,4 @@
+import { jstDate } from "./jst";
 import { queryDueTasks, queryStaleCompleted, trashTask } from "./notion";
 import { sendPushToAll, type PushEnv } from "./push";
 
@@ -24,7 +25,7 @@ export async function cleanupCompletedTasks(env: RemindEnv): Promise<number> {
 // 期限が今日/超過の未完了タスクを、登録済み端末へWeb Pushで通知する。
 // 該当タスクが無い日は何も送らない(通知疲れ防止)。
 export async function sendDailyReminder(env: RemindEnv): Promise<{ sent: boolean; count: number }> {
-  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
+  const today = jstDate();
   const tasks = await queryDueTasks(env.NOTION_TOKEN, env.NOTION_DATA_SOURCE_ID, today);
   if (tasks.length === 0) {
     return { sent: false, count: 0 };

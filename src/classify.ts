@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
+import { jstDate } from "./jst";
 
 export const TaskFieldsSchema = z.object({
   title: z
@@ -51,7 +52,7 @@ export async function interpretInput(
   // タイムアウト/再試行はSDK既定(10分/2回)だとWorkersのwaitUntil約30秒に収まらず
   // タスクごと消えるため短く設定し、時間内にフォールバック登録へ落とす(M-06対策)
   const client = new Anthropic({ apiKey, timeout: 10_000, maxRetries: 1 });
-  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
+  const today = jstDate();
   // タスクタイトルは(Notion側で編集され得る)非信頼データ。指示と分離した
   // データブロックに閉じ込め、タイトル内の命令文を無視するよう明示する(注入緩和)
   const taskList =

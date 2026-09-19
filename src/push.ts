@@ -73,24 +73,28 @@ export async function deleteAllSubscriptions(env: PushEnv): Promise<number> {
 export async function sendPushToAll(env: PushEnv, title: string, body: string): Promise<number> {
   webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
   const list = await env.PUSH_SUBS.list();
-  let sent = 0;
-  for (const key of list.keys) {
-    const raw = await env.PUSH_SUBS.get(key.name);
-    if (!raw) continue;
-    try {
-      await webpush.sendNotification(JSON.parse(raw) as PushSubscription, JSON.stringify({ title, body }), {
-        TTL: 3600,
-        timeout: 5000, // 遅い宛先1件が全端末への配信を止めないように
-      });
-      sent++;
-    } catch (err) {
-      const status = (err as { statusCode?: number }).statusCode;
-      if (status === 404 || status === 410) {
-        await env.PUSH_SUBS.delete(key.name);
-      } else {
-        console.error("push send failed:", status, err);
+  const payload = JSON.stringify({ title, body });
+  // 直列だと「5秒タイムアウト×台数」がwaitUntilの実行猶予(約30秒)を超え得るため並列送信
+  const results = await Promise.allSettled(
+    list.keys.map(async (key) => {
+      const raw = await env.PUSH_SUBS.get(key.name);
+      if (!raw) return false;
+      try {
+        await webpush.sendNotification(JSON.parse(raw) as PushSubscription, payload, {
+          TTL: 3600,
+          timeout: 5000, // 遅い宛先が配信全体を道連れにしないように
+        });
+        return true;
+      } catch (err) {
+        const status = (err as { statusCode?: number }).statusCode;
+        if (status === 404 || status === 410) {
+          await env.PUSH_SUBS.delete(key.name);
+        } else {
+          console.error("push send failed:", status, err);
+        }
+        return false;
       }
-    }
-  }
-  return sent;
+    }),
+  );
+  return results.filter((r) => r.status === "fulfilled" && r.value).length;
 }
