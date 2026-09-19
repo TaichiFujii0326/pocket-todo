@@ -85,6 +85,12 @@ cp .dev.vars.example .dev.vars  # 値を埋める
 npm run dev
 ```
 
+## 設計ドキュメント
+
+- [CONTEXT.md](./CONTEXT.md) — このプロジェクトの用語集
+- [docs/adr/](./docs/adr/) — 主要な設計決定の記録(なぜNotionか、なぜWeb Pushか、など)
+- [SECURITY_REVIEW_CODEX.md](./SECURITY_REVIEW_CODEX.md) — 外部AI(Codex)によるセキュリティ監査レポートと対応
+
 ## ロードマップ
 
 - [x] v1: 爆速入力(iOSショートカット + Webフォーム + AI分類)
